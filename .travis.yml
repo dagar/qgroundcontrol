@@ -12,10 +12,10 @@ before_install:
 install:
   - sudo apt-get install qt54tools qt54base qt54declarative qt54serialport qt54svg qt54webkit qt54quickcontrols qt54xmlpatterns qt54x11extras qt54websockets qt54sensors qt54script qt54quick1 qt54qbs qt54multimedia qt54location qt54imageformats qt54graphicaleffects qt54creator qt54connectivity espeak libespeak-dev libopenscenegraph-dev libsdl1.2-dev libudev-dev
 
-before_script: /opt/qt54/bin/qmake qgroundcontrol.pro
+before_script: /opt/qt54/bin/qmake CONFIG+=release CONFIG+=WarningsAsErrorsOn qgroundcontrol.pro
 script:
-  - make
-  - ./debug/qgroundcontrol --unittest
+  - make -j4
+  - ./release/qgroundcontrol --unittest
 
 deploy:
   provider: releases
