@@ -493,7 +493,7 @@ QGCView {
 
                             onRemove: {
                                 itemDragger.clearItem()
-                                controller.removeMissionItem(object.sequenceNumber)
+                                controller.removeMissionItem(index)
                             }
 
                             onInsert: {
