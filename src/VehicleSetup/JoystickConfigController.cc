@@ -130,17 +130,25 @@ void JoystickConfigController::_advanceState(void)
 /// @brief Sets up the state machine according to the current step from _currentStep.
 void JoystickConfigController::_setupCurrentState(void)
 {
-   const stateMachineEntry* state = _getStateMachineEntry(_currentStep);
-    
+    const stateMachineEntry* state = _getStateMachineEntry(_currentStep);
+
+    // skip throttle if button throttle mode
+    if (_activeJoystick->throttleMode() == Joystick::ThrottleModeButtons) {
+        while (state->function == Joystick::throttleFunction) {
+            _currentStep++;
+            state = _getStateMachineEntry(_currentStep);
+        }
+    }
+
     _statusText->setProperty("text", state->instructions);
-    
+
     _setHelpImage(state->image);
-    
+
     _stickDetectAxis = _axisNoAxis;
     _stickDetectSettleStarted = false;
-    
+
     _calSaveCurrentValues();
-    
+
     _nextButton->setEnabled(state->nextFn != NULL);
     _skipButton->setEnabled(state->skipFn != NULL);
 }
@@ -325,7 +333,7 @@ void JoystickConfigController::_inputStickDetect(Joystick::AxisFunction_t functi
             _rgFunctionAxisMapping[function] = axis;
             info->function = function;
             
-            // Axis should be at max value, if it is below initial set point the the axis is reversed.
+            // Axis should be at max value, if it is below initial set point then the axis is reversed.
             info->reversed = value < _axisValueSave[axis];
             
             if (info->reversed) {

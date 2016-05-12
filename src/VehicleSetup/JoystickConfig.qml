@@ -391,25 +391,26 @@ QGCView {
                             }
                         }
 
-                        Column {
-                            spacing: ScreenTools.defaultFontPixelHeight / 3
+                        Row {
+                            width:      parent.width
+                            spacing:    ScreenTools.defaultFontPixelWidth
 
-                            ExclusiveGroup { id: throttleModeExclusiveGroup }
-
-                            QGCRadioButton {
-                                exclusiveGroup: throttleModeExclusiveGroup
-                                text:           qsTr("Center stick is zero throttle")
-                                checked:        _activeJoystick.throttleMode == 0
-
-                                onClicked: _activeJoystick.throttleMode = 0
+                            QGCLabel {
+                                id:                 joystickThrottleModeLabel
+                                anchors.baseline:   joystickThrottleModeCombo.baseline
+                                text:               qsTr("Throttle mode:")
                             }
 
-                            QGCRadioButton {
-                                exclusiveGroup: throttleModeExclusiveGroup
-                                text:           qsTr("Full down stick is zero throttle")
-                                checked:        _activeJoystick.throttleMode == 1
+                            QGCComboBox {
+                                id:                 joystickThrottleModeCombo
+                                width:              parent.width - joystickThrottleModeLabel.width - parent.spacing
+                                model:              _activeJoystick.throttleModes
 
-                                onClicked: _activeJoystick.throttleMode = 1
+                                onActivated: _activeJoystick.throttleMode = index
+                            }
+
+                            Component.onCompleted: {
+                                joystickThrottleModeCombo.currentIndex = _activeJoystick.throttleMode
                             }
                         }
 
@@ -518,6 +519,14 @@ QGCView {
 
                                     onActivated:            _activeJoystick.setButtonAction(modelData, textAt(index))
                                     Component.onCompleted:  currentIndex = find(_activeJoystick.buttonActions[modelData])
+
+                                    Connections {
+                                        target: _activeJoystick
+
+                                        onAvailableActionsChanged: {
+                                            buttonActionCombo.currentIndex = buttonActionCombo.find(_activeJoystick.buttonActions[modelData])
+                                        }
+                                    }
                                 }
                             }
                         } // Repeater

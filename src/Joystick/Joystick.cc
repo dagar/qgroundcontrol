@@ -25,6 +25,7 @@
 #include "QGC.h"
 #include "AutoPilotPlugin.h"
 #include "UAS.h"
+#include "QGCApplication.h"
 
 #include <QSettings>
 
@@ -65,6 +66,7 @@ Joystick::Joystick(const QString& name, int axisCount, int buttonCount, int sdlI
     , _rgButtonActions(NULL)
     , _lastButtonBits(0)
     , _throttleMode(ThrottleModeCenterZero)
+    , _virtualThrottleValue(0)
     , _activeVehicle(NULL)
     , _pollingStartedForCalibration(false)
     , _multiVehicleManager(multiVehicleManager)
@@ -150,8 +152,12 @@ void Joystick::_loadSettings(void)
         int functionAxis;
         
         functionAxis = settings.value(_rgFunctionSettingsKey[function], -1).toInt(&convertOk);
-        badSettings |= !convertOk || (functionAxis == -1);
-        
+        badSettings |= !convertOk;
+
+        // if throttle is in button mode ignore functionAxis -1
+        if (!((_throttleMode == ThrottleModeButtons) && (function == throttleFunction))) {
+            badSettings |= (functionAxis == -1);
+        }
         _rgFunctionAxis[function] = functionAxis;
         
         qCDebug(JoystickLog) << "_loadSettings function:axis:badsettings" << function << functionAxis << badSettings;
@@ -285,33 +291,35 @@ void Joystick::run(void)
         }
         
         if (_calibrationMode != CalibrationModeCalibrating) {
-            int     axis = _rgFunctionAxis[rollFunction];
-            float   roll = _adjustRange(_rgAxisValues[axis], _rgCalibration[axis]);
-            
-                    axis = _rgFunctionAxis[pitchFunction];
-            float   pitch = _adjustRange(_rgAxisValues[axis], _rgCalibration[axis]);
-            
-                    axis = _rgFunctionAxis[yawFunction];
-            float   yaw = _adjustRange(_rgAxisValues[axis], _rgCalibration[axis]);
-
-                    axis = _rgFunctionAxis[throttleFunction];
-            float   throttle = _adjustRange(_rgAxisValues[axis], _rgCalibration[axis]);
-
+            int   axis = _rgFunctionAxis[rollFunction];
+            float roll = _adjustRange(_rgAxisValues[axis], _rgCalibration[axis]);
             float roll_limited = std::max(static_cast<float>(-M_PI_4), std::min(roll, static_cast<float>(M_PI_4)));
-            float pitch_limited = std::max(static_cast<float>(-M_PI_4), std::min(pitch, static_cast<float>(M_PI_4)));
-            float yaw_limited = std::max(static_cast<float>(-M_PI_4), std::min(yaw, static_cast<float>(M_PI_4)));
-            float throttle_limited = std::max(static_cast<float>(-M_PI_4), std::min(throttle, static_cast<float>(M_PI_4)));
-
-            // Map from unit circle to linear range and limit
-            roll =      std::max(-1.0f, std::min(tanf(asinf(roll_limited)), 1.0f));
-            pitch =     std::max(-1.0f, std::min(tanf(asinf(pitch_limited)), 1.0f));
-            yaw =       std::max(-1.0f, std::min(tanf(asinf(yaw_limited)), 1.0f));
-            throttle =  std::max(-1.0f, std::min(tanf(asinf(throttle_limited)), 1.0f));
+                  roll = std::max(-1.0f, std::min(tanf(asinf(roll_limited)), 1.0f));
             
+                  axis = _rgFunctionAxis[pitchFunction];
+            float pitch = _adjustRange(_rgAxisValues[axis], _rgCalibration[axis]);
+            float pitch_limited = std::max(static_cast<float>(-M_PI_4), std::min(pitch, static_cast<float>(M_PI_4)));
+                  pitch = std::max(-1.0f, std::min(tanf(asinf(pitch_limited)), 1.0f));
+            
+                  axis = _rgFunctionAxis[yawFunction];
+            float yaw = _adjustRange(_rgAxisValues[axis], _rgCalibration[axis]);
+            float yaw_limited = std::max(static_cast<float>(-M_PI_4), std::min(yaw, static_cast<float>(M_PI_4)));
+                  yaw = std::max(-1.0f, std::min(tanf(asinf(yaw_limited)), 1.0f));
+
+            float throttle = 0.0f;
+            if (_throttleMode != ThrottleModeButtons) {
+                axis = _rgFunctionAxis[throttleFunction];
+                throttle = _adjustRange(_rgAxisValues[axis], _rgCalibration[axis]);
+                float throttle_limited = std::max(static_cast<float>(-M_PI_4), std::min(throttle, static_cast<float>(M_PI_4)));
+                throttle = std::max(-1.0f, std::min(tanf(asinf(throttle_limited)), 1.0f));
+            } else {
+                throttle = _virtualThrottleValue;
+            }
+
             // Adjust throttle to 0:1 range
             if (_throttleMode == ThrottleModeCenterZero) {
                 throttle = std::max(0.0f, throttle);
-            } else {                
+            } else if (_throttleMode == ThrottleModeDownZero) {
                 throttle = (throttle + 1.0f) / 2.0f;
             }
             
@@ -403,10 +411,10 @@ void Joystick::stopPolling(void)
         if (_activeVehicle && _activeVehicle->joystickEnabled()) {
             UAS* uas = _activeVehicle->uas();
 
-            disconnect(this, &Joystick::manualControl,          uas, &UAS::setExternalControlSetpoint);
+            disconnect(this, &Joystick::manualControl, uas, &UAS::setExternalControlSetpoint);
         }
         // FIXME: ****
-        //disconnect(this, &Joystick::buttonActionTriggered,  uas, &UAS::triggerAction);
+        //disconnect(this, &Joystick::buttonActionTriggered, uas, &UAS::triggerAction);
         
         _exitThread = true;
         }
@@ -456,6 +464,17 @@ int Joystick::getFunctionAxis(AxisFunction_t function)
     return _rgFunctionAxis[function];
 }
 
+QStringList Joystick::throttleModes(void)
+{
+    QStringList list;
+
+    list << "Center stick is zero throttle"
+         << "Full down stick is zero throttle"
+         << "Use buttons for throttle +/-";
+
+    return list;
+}
+
 QStringList Joystick::actions(void)
 {
     QStringList list;
@@ -464,6 +483,12 @@ QStringList Joystick::actions(void)
 
     if (_activeVehicle) {
         list << _activeVehicle->flightModes();
+    }
+
+    list << "Camera Trigger";
+
+    if (_throttleMode == ThrottleModeButtons) {
+         list << "Throttle +10%" << "Throttle -10%";
     }
     
     return list;
@@ -515,9 +540,14 @@ void Joystick::setThrottleMode(int mode)
         return;
     }
     
-    _throttleMode = (ThrottleMode_t)mode;
-    _saveSettings();
-    emit throttleModeChanged(_throttleMode);
+    if (_throttleMode != (ThrottleMode_t)mode) {
+        _throttleMode = (ThrottleMode_t)mode;
+        _saveSettings();
+
+        emit throttleModeChanged(_throttleMode);
+        emit availableActionsChanged(actions());
+        emit buttonActionsChanged(buttonActions());
+    }
 }
 
 void Joystick::startCalibrationMode(CalibrationMode_t mode)
@@ -562,6 +592,22 @@ void Joystick::_buttonAction(const QString& action)
         _activeVehicle->setArmed(true);
     } else if (action == "Disarm") {
         _activeVehicle->setArmed(false);
+    } else if (action == "Camera Trigger") {
+        _activeVehicle->doCommandLong(_activeVehicle->id(), MAV_CMD_DO_DIGICAM_CONTROL, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f);
+    } else if (action == "Throttle +10%") {
+        float newThrottle = std::min(1.0, _virtualThrottleValue + 0.1);
+        if (newThrottle != _virtualThrottleValue) {
+            _virtualThrottleValue = newThrottle;
+            qgcApp()->beep();
+            //qgcApp()->toolbox()->audioOutput()->say(QString("throttle %1").arg(_virtualThrottleValue));
+        }
+    } else if (action == "Throttle -10%") {
+       float newThrottle = std::max(0.0, _virtualThrottleValue - 0.1);
+       if (newThrottle != _virtualThrottleValue) {
+           _virtualThrottleValue = newThrottle;
+           qgcApp()->beep();
+           //qgcApp()->toolbox()->audioOutput()->say(QString("throttle %1").arg(_virtualThrottleValue));
+       }
     } else if (_activeVehicle->flightModes().contains(action)) {
         _activeVehicle->setFlightMode(action);
     } else {

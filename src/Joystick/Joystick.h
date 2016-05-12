@@ -60,6 +60,7 @@ public:
     typedef enum {
         ThrottleModeCenterZero,
         ThrottleModeDownZero,
+        ThrottleModeButtons,
         ThrottleModeMax
     } ThrottleMode_t;
     
@@ -71,12 +72,13 @@ public:
     Q_PROPERTY(int buttonCount  READ buttonCount    CONSTANT)
     Q_PROPERTY(int axisCount    READ axisCount      CONSTANT)
     
-    Q_PROPERTY(QStringList actions READ actions CONSTANT)
+    Q_PROPERTY(QStringList actions READ actions NOTIFY availableActionsChanged)
     
     Q_PROPERTY(QVariantList buttonActions READ buttonActions NOTIFY buttonActionsChanged)
     Q_INVOKABLE void setButtonAction(int button, const QString& action);
     Q_INVOKABLE QString getButtonAction(int button);
     
+    Q_PROPERTY(QStringList throttleModes READ throttleModes CONSTANT)
     Q_PROPERTY(int throttleMode READ throttleMode WRITE setThrottleMode NOTIFY throttleModeChanged)
 
     // Property accessors
@@ -93,6 +95,8 @@ public:
     
     void setFunctionAxis(AxisFunction_t function, int axis);
     int getFunctionAxis(AxisFunction_t function);
+
+    QStringList throttleModes(void);
     
     QStringList actions(void);
     QVariantList buttonActions(void);
@@ -121,6 +125,7 @@ signals:
     void rawAxisValueChanged(int index, int value);
     void rawButtonPressedChanged(int index, int pressed);
     
+    void availableActionsChanged(QStringList actions);
     void buttonActionsChanged(QVariantList actions);
     
     void throttleModeChanged(int mode);
@@ -169,12 +174,14 @@ private:
     quint16             _lastButtonBits;
     
     ThrottleMode_t      _throttleMode;
+
+    float               _virtualThrottleValue;
     
     Vehicle*            _activeVehicle;
     bool                _pollingStartedForCalibration;
 
     MultiVehicleManager*    _multiVehicleManager;
-#endif // __mobile__
+#endif // !__mobile__
     
 private:
     static const char*  _rgFunctionSettingsKey[maxFunction];
