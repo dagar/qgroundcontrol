@@ -47,6 +47,7 @@
 #include "QGCMapEngine.h"
 #include "QGeoTileFetcherQGC.h"
 #include "QGeoMapReplyQGC.h"
+#include "QGCTileFetcher.h"
 
 #include <QtCore/QLocale>
 #include <QtNetwork/QNetworkRequest>
@@ -69,7 +70,21 @@ QGeoTileFetcherQGC::~QGeoTileFetcherQGC()
 QGeoTiledMapReply*
 QGeoTileFetcherQGC::getTileImage(const QGeoTileSpec &spec)
 {
+    QGeoTiledMapReplyQGC *reply = new QGeoTiledMapReplyQGC(spec);
+
+    //connect(reply, &QGeoTiledMapReplyQGC::tileSetNotCached, this, &QGeoTileFetcherQGC::fetchAndCacheTile);
+
+    return reply;
+}
+
+int QGeoTileFetcherQGC::fetchAndCacheTile(const QGeoTileSpec &spec)
+{
     //-- Build URL
     QNetworkRequest request = getQGCMapEngine()->urlFactory()->getTileURL((UrlFactory::MapType)spec.mapId(), spec.x(), spec.y(), spec.zoom(), _networkManager);
-    return new QGeoTiledMapReplyQGC(_networkManager, request, spec);
+
+    new QGCTileFetcher(_networkManager, request, spec);
+
+    //updateTileRequests(QSet(spec));
+
+    return 0;
 }

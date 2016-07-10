@@ -59,6 +59,9 @@ class QGeoTileFetcherQGC : public QGeoTileFetcher
 public:
     explicit QGeoTileFetcherQGC             (QGeoTiledMappingManagerEngine *parent = 0);
     ~QGeoTileFetcherQGC();
+
+    int fetchAndCacheTile(const QGeoTileSpec &spec);
+
 private:
     QGeoTiledMapReply*      getTileImage    (const QGeoTileSpec &spec);
 private:

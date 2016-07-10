@@ -52,96 +52,18 @@
 #include <QFile>
 
 //-----------------------------------------------------------------------------
-QGeoTiledMapReplyQGC::QGeoTiledMapReplyQGC(QNetworkAccessManager *networkManager, const QNetworkRequest &request, const QGeoTileSpec &spec, QObject *parent)
+QGeoTiledMapReplyQGC::QGeoTiledMapReplyQGC(const QGeoTileSpec &spec, QObject *parent)
     : QGeoTiledMapReply(spec, parent)
-    , _reply(NULL)
-    , _request(request)
-    , _networkManager(networkManager)
 {
-    if(_request.url().isEmpty()) {
-        if(!_badMapBox.size()) {
-            QFile b(":/res/notile.png");
-            if(b.open(QFile::ReadOnly))
-                _badMapBox = b.readAll();
-        }
-        setMapImageData(_badMapBox);
-        setMapImageFormat("png");
-        setFinished(true);
-        setCached(false);
-    } else {
-        QGCFetchTileTask* task = getQGCMapEngine()->createFetchTileTask((UrlFactory::MapType)spec.mapId(), spec.x(), spec.y(), spec.zoom());
-        connect(task, &QGCFetchTileTask::tileFetched, this, &QGeoTiledMapReplyQGC::cacheReply);
-        connect(task, &QGCMapTask::error, this, &QGeoTiledMapReplyQGC::cacheError);
-        getQGCMapEngine()->addTask(task);
-    }
+    QGCFetchTileTask* task = getQGCMapEngine()->createFetchTileTask((UrlFactory::MapType)spec.mapId(), spec.x(), spec.y(), spec.zoom());
+    connect(task, &QGCFetchTileTask::tileFetched, this, &QGeoTiledMapReplyQGC::cacheReply);
+    connect(task, &QGCMapTask::error, this, &QGeoTiledMapReplyQGC::cacheError);
+    getQGCMapEngine()->addTask(task);
 }
 
 //-----------------------------------------------------------------------------
 QGeoTiledMapReplyQGC::~QGeoTiledMapReplyQGC()
 {
-    if (_reply) {
-        _reply->deleteLater();
-        _reply = 0;
-    }
-}
-//-----------------------------------------------------------------------------
-void
-QGeoTiledMapReplyQGC::abort()
-{
-    if (_reply)
-        _reply->abort();
-}
-
-//-----------------------------------------------------------------------------
-void
-QGeoTiledMapReplyQGC::replyDestroyed()
-{
-    _reply = 0;
-}
-
-//-----------------------------------------------------------------------------
-void
-QGeoTiledMapReplyQGC::networkReplyFinished()
-{
-    if (!_reply) {
-        return;
-    }
-    if (_reply->error() != QNetworkReply::NoError) {
-        return;
-    }
-    QByteArray a = _reply->readAll();
-    setMapImageData(a);
-    QString format = getQGCMapEngine()->urlFactory()->getImageFormat((UrlFactory::MapType)tileSpec().mapId(), a);
-    if(!format.isEmpty()) {
-        setMapImageFormat(format);
-        getQGCMapEngine()->cacheTile((UrlFactory::MapType)tileSpec().mapId(), tileSpec().x(), tileSpec().y(), tileSpec().zoom(), a, format);
-    }
-    setFinished(true);
-    _reply->deleteLater();
-    _reply = 0;
-}
-
-//-----------------------------------------------------------------------------
-void
-QGeoTiledMapReplyQGC::networkReplyError(QNetworkReply::NetworkError error)
-{
-    if (!_reply) {
-        return;
-    }
-    if (error != QNetworkReply::OperationCanceledError) {
-        qWarning() << "Fetch tile error:" << _reply->errorString();
-    }
-    _reply->deleteLater();
-    _reply = 0;
-    if(!_badTile.size()) {
-        QFile b(":/res/notile.png");
-        if(b.open(QFile::ReadOnly))
-            _badTile = b.readAll();
-    }
-    setMapImageData(_badTile);
-    setMapImageFormat("png");
-    setFinished(true);
-    setCached(false);
 }
 
 //-----------------------------------------------------------------------------
@@ -151,12 +73,20 @@ QGeoTiledMapReplyQGC::cacheError(QGCMapTask::TaskType type, QString /*errorStrin
     if(type != QGCMapTask::taskFetchTile) {
         qWarning() << "QGeoTiledMapReplyQGC::cacheError() for wrong task";
     }
-    //-- Tile not in cache. Get it off the Internet.
-    _reply = _networkManager->get(_request);
-    _reply->setParent(0);
-    connect(_reply, SIGNAL(finished()),                         this, SLOT(networkReplyFinished()));
-    connect(_reply, SIGNAL(error(QNetworkReply::NetworkError)), this, SLOT(networkReplyError(QNetworkReply::NetworkError)));
-    connect(_reply, SIGNAL(destroyed()),                        this, SLOT(replyDestroyed()));
+
+    /*
+    if(!_badTile.size()) {
+        QFile b(":/res/dagar.jpg");
+        if(b.open(QFile::ReadOnly))
+            _badTile = b.readAll();
+    }
+    setMapImageData(_badTile);
+    setMapImageFormat("jpg");
+    setFinished(true);
+    setCached(false);
+    */
+
+    emit tileSpecNotCached(tileSpec());
 }
 
 //-----------------------------------------------------------------------------

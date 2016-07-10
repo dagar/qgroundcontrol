@@ -56,23 +56,16 @@ class QGeoTiledMapReplyQGC : public QGeoTiledMapReply
 {
     Q_OBJECT
 public:
-    QGeoTiledMapReplyQGC(QNetworkAccessManager*  networkManager, const QNetworkRequest& request, const QGeoTileSpec &spec, QObject *parent = 0);
+    QGeoTiledMapReplyQGC(const QGeoTileSpec &spec, QObject *parent = 0);
     ~QGeoTiledMapReplyQGC();
-    void abort();
+
+signals:
+    void tileSpecNotCached(const QGeoTileSpec &spec);
 
 private slots:
-    void replyDestroyed         ();
-    void networkReplyFinished   ();
-    void networkReplyError      (QNetworkReply::NetworkError error);
     void cacheReply             (QGCCacheTile* tile);
     void cacheError             (QGCMapTask::TaskType type, QString errorString);
 
-private:
-    QNetworkReply*          _reply;
-    QNetworkRequest         _request;
-    QNetworkAccessManager*  _networkManager;
-    QByteArray              _badMapBox;
-    QByteArray              _badTile;
 };
 
 #endif // QGEOMAPREPLYQGC_H
