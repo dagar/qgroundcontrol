@@ -1077,6 +1077,13 @@ private:
     bool                _isROIEnabled   = false;
     Joystick*           _activeJoystick = nullptr;
 
+    int16_t             _previousRollCommand = 0;
+    int16_t             _previousPitchCommand = 0;
+    int16_t             _previousYawCommand = 0;
+    int16_t             _previousThrustCommand = 0;
+    quint16             _previousButtons = 0;
+    qint64              _lastManualControlSent = 0;
+
     bool _checkLatestStableFWDone = false;
     int _firmwareMajorVersion = versionNotSetValue;
     int _firmwareMinorVersion = versionNotSetValue;

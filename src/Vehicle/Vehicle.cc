@@ -3807,23 +3807,36 @@ void Vehicle::sendJoystickDataThreadSafe(float roll, float pitch, float yaw, flo
 
         // Incoming values are in the range -1:1
         float axesScaling =         1.0 * 1000.0;
-        float newRollCommand =      roll * axesScaling;
-        float newPitchCommand  =    pitch * axesScaling;    // Joystick data is reverse of mavlink values
-        float newYawCommand    =    yaw * axesScaling;
-        float newThrustCommand =    thrust * axesScaling;
+        int16_t newRollCommand   = roundf(roll   * axesScaling);
+        int16_t newPitchCommand  = roundf(pitch  * axesScaling);    // Joystick data is reverse of mavlink values
+        int16_t newYawCommand    = roundf(yaw    * axesScaling);
+        int16_t newThrustCommand = roundf(thrust * axesScaling);
 
-        mavlink_msg_manual_control_pack_chan(
-                    static_cast<uint8_t>(_mavlink->getSystemId()),
-                    static_cast<uint8_t>(_mavlink->getComponentId()),
-                    sharedLink->mavlinkChannel(),
-                    &message,
-                    static_cast<uint8_t>(_id),
-                    static_cast<int16_t>(newPitchCommand),
-                    static_cast<int16_t>(newRollCommand),
-                    static_cast<int16_t>(newThrustCommand),
-                    static_cast<int16_t>(newYawCommand),
-                    buttons);
-        sendMessageOnLinkThreadSafe(sharedLink.get(), message);
+        if ((_previousRollCommand != newRollCommand) || (_previousRollCommand != newPitchCommand)
+                || (_previousYawCommand != newYawCommand) || (_previousThrustCommand != newThrustCommand)
+                || (_previousButtons != buttons) || (_flightTimer.elapsed() >= _lastManualControlSent + 500)) {
+
+            mavlink_msg_manual_control_pack_chan(
+                        static_cast<uint8_t>(_mavlink->getSystemId()),
+                        static_cast<uint8_t>(_mavlink->getComponentId()),
+                        sharedLink->mavlinkChannel(),
+                        &message,
+                        static_cast<uint8_t>(_id),
+                        newPitchCommand,
+                        newRollCommand,
+                        newThrustCommand,
+                        newYawCommand,
+                        buttons);
+            sendMessageOnLinkThreadSafe(sharedLink.get(), message);
+
+            _previousRollCommand   = newRollCommand;
+            _previousPitchCommand  = newPitchCommand;
+            _previousYawCommand    = newYawCommand;
+            _previousThrustCommand = newThrustCommand;
+            _previousButtons       = buttons;
+
+            _lastManualControlSent = _flightTimer.elapsed();
+        }
     }
 }
 
